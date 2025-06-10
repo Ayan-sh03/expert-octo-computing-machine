@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Material } from '@/types/materials';
 
 
@@ -13,10 +13,20 @@ export default function MaterialsComparison() {
   const [error, setError] = useState<string | null>(null);
   const [popularMaterials, setPopularMaterials] = useState<Material[]>([]);
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Fetch popular materials on component mount
   useEffect(() => {
     fetchPopularMaterials();
+  }, []);
+
+  // Cleanup timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
   }, []);
 
   const fetchPopularMaterials = async () => {
@@ -39,7 +49,7 @@ export default function MaterialsComparison() {
     setError(null);
     
     try {
-      const response = await fetch(`${BACKEND_URL}/api/materials/search?q=${encodeURIComponent(query)}&limit=5`);
+      const response = await fetch(`${BACKEND_URL}/api/materials/search?q=${encodeURIComponent(query)}&limit=10`);
       const data = await response.json();
       
       if (data.success) {
@@ -56,6 +66,19 @@ export default function MaterialsComparison() {
       setIsLoading(false);
     }
   };
+
+  // Debounced search function
+  const debouncedSearch = useCallback((query: string) => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout
+    searchTimeoutRef.current = setTimeout(() => {
+      searchMaterials(query);
+    }, 300); // 300ms delay
+  }, [BACKEND_URL]);
 
   const addMaterial = (material: Material) => {
     // Check if the material is already selected
@@ -128,9 +151,7 @@ export default function MaterialsComparison() {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                if (e.target.value.length >= 2) {
-                  searchMaterials(e.target.value);
-                }
+                debouncedSearch(e.target.value);
               }}
               placeholder="Search by formula (e.g., Si, Fe2O3) or element (e.g., Fe)"
               className="flex-1 px-3 py-2 border border-gray-300 rounded"
