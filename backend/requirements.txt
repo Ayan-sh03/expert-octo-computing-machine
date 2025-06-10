@@ -1,0 +1,4 @@
+flask
+flask-cors  
+mp-api
+python-dotenv
